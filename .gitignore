@@ -1,0 +1,11 @@
+node_modules/
+package-lock.json
+dist/
+.npm-cache/
+.env
+.env.local
+test-results/
+playwright-report/
+*.tsbuildinfo
+.qa/
+public/pdfjs/

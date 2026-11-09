@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Download, Highlighter, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, errorMessage } from '../../shared/api';
+import { api, ApiError, errorMessage } from '../../shared/api';
 import type { Annotation, AnnotationWithDocument, HighlightColor, StudyDocument } from '../../shared/types';
 import { useAuth } from '../auth/AuthProvider';
 import { AnnotationCard } from './AnnotationCard';
@@ -30,8 +30,15 @@ export default function HighlightsPage() {
     return [...map.values()];
   }, [query.data, search, color, kind]);
   const refresh = async () => { await Promise.all([client.invalidateQueries({ queryKey: ['all-annotations'] }), client.invalidateQueries({ queryKey: ['annotations'] }), client.invalidateQueries({ queryKey: ['documents'] })]); };
+  const refreshConflictingAnnotation = async (error: unknown) => {
+    if (error instanceof ApiError && error.code === 'VERSION_CONFLICT') {
+      // AnnotationCard keeps its editor mounted, retaining the draft while the
+      // refreshed annotation supplies the current rowVersion for a retry.
+      await refresh();
+    }
+  };
   const update = useMutation({ mutationFn: ({ annotation, noteText, color }: { annotation: Annotation; noteText: string; color: HighlightColor }) =>
-    api.updateAnnotation(annotation.id, { rowVersion: annotation.rowVersion, noteText, ...(annotation.type === 'HIGHLIGHT' ? { color } : {}) }), onSuccess: refresh });
+    api.updateAnnotation(annotation.id, { rowVersion: annotation.rowVersion, noteText, ...(annotation.type === 'HIGHLIGHT' ? { color } : {}) }), onSuccess: refresh, onError: refreshConflictingAnnotation });
   const remove = useMutation({ mutationFn: (annotation: Annotation) => api.deleteAnnotation(annotation.id), onSuccess: refresh });
   const exportNotes = () => {
     const text = ['# My StudyMark notes', ...groups.map((group) => `\n## ${group.document.title}\n\n${group.annotations.map((item) =>

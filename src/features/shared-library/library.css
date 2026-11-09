@@ -3,6 +3,10 @@
 .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.8px; color: #75847c; margin-bottom: 10px; }
 .library-heading h1 { margin: 0 0 9px; font-size: 32px; font-weight: 650; letter-spacing: -1.15px; }
 .library-heading p { margin: 0; color: #7b827d; font-size: 14px; }
+.library-scope-nav { display: flex; gap: 6px; padding-bottom: 12px; margin-bottom: 24px; border-bottom: 1px solid #e1e6e0; }
+.library-scope-nav a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 7px; color: #68766c; font-size: 13px; font-weight: 600; text-decoration: none; }
+.library-scope-nav a:hover { background: #eef4eb; }
+.library-scope-nav a[aria-current="page"] { background: #e9f1ea; color: #29654b; }
 .library-welcome { overflow: hidden; position: relative; background: #eaf1e9; border: 1px solid #e0e8df; border-radius: 13px; min-height: 240px; padding: 32px 38px; display: flex; justify-content: space-between; margin-bottom: 30px; }
 .library-welcome .eyebrow { color: #67816d; font-size: 9px; letter-spacing: 1.4px; }
 .library-welcome h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 33px; font-weight: 400; line-height: 1.15; letter-spacing: -.8px; margin: 13px 0; color: #284b3c; }

@@ -13,7 +13,7 @@ const AdminPage = lazy(() => import('../../features/admin/AdminPage'));
 const SettingsPage = lazy(() => import('../../features/auth/SettingsPage'));
 function PdfReaderRoute() {
   const { documentId } = useParams();
-  return <PdfReaderPage key={documentId} />;
+  return <main id="main-content" className="main-reader"><PdfReaderPage key={documentId} /></main>;
 }
 function ProtectedRoute({ admin = false }: { admin?: boolean }) {
   const { user, loading, error } = useAuth();
@@ -27,8 +27,10 @@ function ProtectedRoute({ admin = false }: { admin?: boolean }) {
 export function AppRoutes() {
   return <Suspense fallback={<LoadingState />}><Routes>
     <Route path="/login" element={<AuthPage key="login" />} /><Route path="/register" element={<AuthPage key="register" register />} />
-    <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
-      <Route index element={<Navigate to="/library" replace />} /><Route path="/library" element={<SharedLibraryPage />} /><Route path="/my-pdfs" element={<MyPdfsPage />} /><Route path="/reader/:documentId" element={<PdfReaderRoute />} /><Route path="/highlights" element={<HighlightsPage />} /><Route path="/settings" element={<SettingsPage />} /><Route element={<ProtectedRoute admin />}><Route path="/admin" element={<AdminPage />} /></Route>
+    <Route element={<ProtectedRoute />}>
+      <Route path="/reader/:documentId" element={<PdfReaderRoute />} />
+      <Route element={<AppShell />}>
+      <Route index element={<Navigate to="/library" replace />} /><Route path="/library" element={<SharedLibraryPage />} /><Route path="/my-pdfs" element={<MyPdfsPage />} /><Route path="/highlights" element={<HighlightsPage />} /><Route path="/settings" element={<SettingsPage />} /><Route element={<ProtectedRoute admin />}><Route path="/admin" element={<AdminPage />} /></Route>
       <Route path="*" element={<div className="empty-state"><h1>That page isn’t in your library</h1><p>Let’s get you back to your study space.</p><a className="btn btn-primary" href="/library">Back to library</a></div>} />
     </Route></Route>
   </Routes></Suspense>;

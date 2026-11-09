@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../../shared/api';
+import { api, isMockApi } from '../../shared/api';
 import type { LoginInput, RegisterInput, User } from '../../shared/types';
 
 interface AuthContextValue {
@@ -19,22 +19,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const client = useQueryClient();
+  const sessionRequest = useRef(0);
+  const profileRequest = useRef(0);
   const restore = useCallback(() => {
+    const request = ++sessionRequest.current;
     setLoading(true);
-    api.getSession().then(setUser).catch(() => setError('Could not open browser storage. Enable site storage, then reload.')).finally(() => setLoading(false));
+    setError('');
+    api.getSession().then(next => {
+      if (request === sessionRequest.current) setUser(next);
+    }).catch(() => {
+      if (request === sessionRequest.current) {
+        setUser(null);
+        setError(isMockApi ? 'Could not open browser storage. Enable site storage, then reload.' : 'Could not restore your session. Check your connection, then retry.');
+      }
+    }).finally(() => { if (request === sessionRequest.current) setLoading(false); });
   }, []);
   useEffect(() => {
     restore();
-    const onStorage = () => { client.clear(); restore(); };
+    const onStorage = (event: StorageEvent) => {
+      if (isMockApi && (event.key === null || event.key === 'studymark.session' || event.key === 'studymark.session.revision')) {
+        client.clear(); restore();
+      }
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => { sessionRequest.current += 1; window.removeEventListener('storage', onStorage); };
   }, [restore, client]);
   const value: AuthContextValue = {
     user, loading, error,
-    login: async (input) => { const next = await api.login(input); client.clear(); setUser(next); setError(''); },
-    register: async (input) => { const next = await api.register(input); client.clear(); setUser(next); setError(''); },
-    logout: async () => { await api.logout(); client.clear(); setUser(null); },
-    updateProfile: async (displayName) => setUser(await api.updateProfile({ displayName })),
+    login: async (input) => {
+      const request = ++sessionRequest.current;
+      try {
+        const next = await api.login(input);
+        if (request === sessionRequest.current) { client.clear(); setUser(next); setError(''); }
+      } finally { if (request === sessionRequest.current) setLoading(false); }
+    },
+    register: async (input) => {
+      const request = ++sessionRequest.current;
+      try {
+        const next = await api.register(input);
+        if (request === sessionRequest.current) { client.clear(); setUser(next); setError(''); }
+      } finally { if (request === sessionRequest.current) setLoading(false); }
+    },
+    logout: async () => {
+      const request = ++sessionRequest.current;
+      try {
+        await api.logout();
+        if (request === sessionRequest.current) { client.clear(); setUser(null); setError(''); }
+      } finally { if (request === sessionRequest.current) setLoading(false); }
+    },
+    updateProfile: async (displayName) => {
+      const session = sessionRequest.current;
+      const request = ++profileRequest.current;
+      const next = await api.updateProfile({ displayName });
+      if (session === sessionRequest.current && request === profileRequest.current) setUser(next);
+    },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

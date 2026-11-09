@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { FileWarning, Highlighter, LoaderCircle } from 'lucide-react';
 import { api, ApiError, errorMessage, isMockApi } from '../../shared/api';
-import type { Annotation, CreateAnnotationInput, HighlightColor } from '../../shared/types';
+import type { Annotation, CreateAnnotationInput, HighlightColor, StudyDocument } from '../../shared/types';
 import { useAuth } from '../auth/AuthProvider';
 import { NotesSidebar } from '../annotations/NotesSidebar';
 import { PdfToolbar } from './PdfToolbar';
@@ -35,6 +35,7 @@ export default function PdfReaderPage() {
   const requestedPage = Number(params.get('page')) || details.data?.lastPage || 1;
   const page = Math.min(maxPages, Math.max(1, Math.floor(requestedPage)));
   const activeId = params.get('annotation') ?? undefined;
+  const documentReady = Boolean(details.data && content.data);
   const updatePageCount = useCallback((count: number) => setPageCount(count), []);
 
   const refreshAnnotations = useCallback(async () => {
@@ -58,15 +59,19 @@ export default function PdfReaderPage() {
   const remove = useMutation({ mutationFn: (annotation: Annotation) => api.deleteAnnotation(annotation.id), onSuccess: refreshAnnotations, onError: onSaveError });
 
   useEffect(() => {
-    if (!details.data || !content.data) return;
+    if (!documentReady) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       api.saveProgress(documentId, page).then(() => {
-        if (!cancelled) { setProgressError(''); void client.invalidateQueries({ queryKey: ['documents'] }); }
+        // Keep a still-cached document in sync even if the reader closed while saving.
+        // Returning undefined prevents an old request recreating a cleared account cache.
+        client.setQueryData<StudyDocument>(['document', user?.id, documentId], (current) => current ? { ...current, lastPage: page } : undefined);
+        void client.invalidateQueries({ queryKey: ['documents'] });
+        if (!cancelled) setProgressError('');
       }).catch((error: unknown) => { if (!cancelled) setProgressError(errorMessage(error)); });
     }, 350);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [documentId, page, details.data, content.data, progressRetry, client]);
+  }, [documentId, page, documentReady, progressRetry, client, user?.id]);
 
   const navigate = (nextPage: number, annotationId?: string) => {
     setSelection(null); setSelectionError(''); window.getSelection()?.removeAllRanges();

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 async function login(page: Page, account = 'Alex · Student') {
   await page.goto('/login');
@@ -10,6 +11,22 @@ async function openPdf(page: Page, id = 'java-collections', number = 1) {
   await page.goto(`/reader/${id}?page=${number}`);
   await expect(page.locator('.pdf-page')).not.toHaveClass(/is-loading/);
   await expect(page.locator('.textLayer span').first()).toBeVisible();
+}
+async function expectReadingLayout(page: Page) {
+  await expect(page.locator('.app-sidebar')).toHaveCount(0);
+  await expect(page.locator('.app-header')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open navigation' })).toHaveCount(0);
+  const bounds = await page.locator('.reader-page').evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return [rect.left, rect.top, rect.width - innerWidth, rect.height - innerHeight];
+  });
+  for (const offset of bounds) expect(Math.abs(offset)).toBeLessThan(1);
+}
+async function backToLibrary(page: Page, path = '/library') {
+  await page.getByRole('link', { name: 'Back to library', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${path}$`));
+  await expect(page.locator('.app-header')).toBeVisible();
+  await expect(page.locator('.app-sidebar')).toHaveCount(1);
 }
 async function selectParagraph(page: Page) {
   await page.locator('.textLayer').evaluate(layer => {
@@ -35,7 +52,12 @@ async function geometry(page: Page) {
 }
 async function expectTextAlignment(page: Page) {
   const drift = await page.locator('.pdf-page').evaluate(element => {
-    const text = [...element.querySelectorAll('.textLayer span')].find(span => (span.textContent?.length ?? 0) > 40)!.getBoundingClientRect();
+    const span = [...element.querySelectorAll('.textLayer span')].find(span => (span.textContent?.length ?? 0) > 40)!;
+    // Highlights follow selected glyph bounds. The span's line box has a different
+    // ascent at larger font sizes, so measure the same text range used to select it.
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const text = range.getBoundingClientRect();
     const highlight = element.querySelector('.pdf-highlight')!.getBoundingClientRect();
     return Math.max(Math.abs(text.left - highlight.left), Math.abs(text.top - highlight.top));
   });
@@ -47,6 +69,7 @@ test('multiline highlight, note CRUD, zoom/resize/reload persistence, and accoun
   await login(page);
   await page.screenshot({ path: '.qa/library-desktop.png', fullPage: true });
   await openPdf(page);
+  await expectReadingLayout(page);
   await selectParagraph(page);
   await page.getByRole('button', { name: 'Highlight yellow', exact: true }).click();
   await expect(page.locator('.pdf-highlight').first()).toBeVisible();
@@ -83,6 +106,8 @@ test('multiline highlight, note CRUD, zoom/resize/reload persistence, and accoun
   await card.getByRole('button', { name: 'Page 1', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: 'Page number' })).toHaveValue('1');
   await expect(page.locator('.pdf-highlight.is-active').first()).toBeVisible();
+  await backToLibrary(page);
+  await expect(page.locator('.app-sidebar')).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByRole('button', { name: 'Sam · Student', exact: true }).click();
   await openPdf(page);
@@ -128,7 +153,7 @@ test('upload, rename, note failure/retry, delete and mobile navigation', async (
   await expect(page.getByRole('textbox', { name: 'Your note' })).toHaveValue('Remember the rotated example.');
   await page.getByRole('button', { name: 'Retry save', exact: true }).click();
   await expect(page.getByText('Remember the rotated example.', { exact: true })).toBeVisible();
-  await page.goto('/my-pdfs');
+  await backToLibrary(page, '/my-pdfs');
   const doc = page.locator('.document-card').filter({ hasText: 'Rotation practice' });
   await doc.locator('summary').click();
   await doc.getByRole('button', { name: 'Rename' }).click();
@@ -163,6 +188,99 @@ test('admin publication and student route restrictions', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'This document is unavailable' })).toBeVisible();
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/library$/);
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Administrator', exact: true }).click();
+  await page.getByRole('link', { name: 'Manage materials', exact: true }).click();
+  await row.getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(row.getByText('Published', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Alex · Student', exact: true }).click();
+  await openPdf(page);
+  await expect(page.locator('.annotation-card')).toHaveCount(1);
+});
+
+test('last-read page survives cached library navigation and reload', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Java Collections', exact: true }).click();
+  await expect(page.locator('.textLayer span').first()).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Page number' }).fill('7');
+  await page.getByRole('spinbutton', { name: 'Page number' }).press('Enter');
+  await expect.poll(() => page.evaluate(async () => {
+    const path = '/src/shared/api/index.ts';
+    const { api } = await import(/* @vite-ignore */ path);
+    return (await api.getDocument('java-collections')).lastPage;
+  })).toBe(7);
+  await backToLibrary(page);
+  await expect(page.getByRole('progressbar', { name: 'Java Collections reading progress' })).toHaveAttribute('value', '35');
+  await page.getByRole('link', { name: 'Java Collections', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Page number' })).toHaveValue('7');
+  await page.reload();
+  await expect(page.getByRole('spinbutton', { name: 'Page number' })).toHaveValue('7');
+});
+
+test('page notes can be searched, exported, edited and deleted from My highlights', async ({ page }) => {
+  await login(page);
+  await openPdf(page, 'java-collections', 2);
+  await page.getByRole('button', { name: 'Add note', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Your note' }).fill('Review iterator behavior before practice.');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(page.getByText('Review iterator behavior before practice.', { exact: true })).toBeVisible();
+  await backToLibrary(page);
+  await page.getByRole('link', { name: 'My highlights', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search highlights' }).fill('iterator behavior');
+  await page.getByRole('combobox', { name: 'Annotation type' }).selectOption('notes');
+  await expect(page.locator('.annotation-card')).toHaveCount(1);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export notes', exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('studymark-notes.md');
+  const markdown = await readFile((await download.path())!, 'utf8');
+  expect(markdown).toContain('## Java Collections');
+  expect(markdown).toContain('### Page 2');
+  expect(markdown).toContain('Review iterator behavior before practice.');
+  expect(markdown.match(/### Page /g)).toHaveLength(1);
+  const card = page.locator('.annotation-card');
+  await card.getByRole('button', { name: 'Edit annotation' }).click();
+  await card.getByRole('textbox', { name: 'Your note' }).fill('Review iterator behavior and fail-fast collections.');
+  await card.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(card.getByText('Review iterator behavior and fail-fast collections.', { exact: true })).toBeVisible();
+  await card.getByRole('button', { name: 'Page 2', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Page number' })).toHaveValue('2');
+  await expect(page.locator('.annotation-card.is-active')).toContainText('Review iterator behavior and fail-fast collections.');
+  await backToLibrary(page);
+  await page.getByRole('link', { name: 'My highlights', exact: true }).click();
+  const saved = page.locator('.annotation-card').filter({ hasText: 'Review iterator behavior and fail-fast collections.' });
+  await saved.getByRole('button', { name: 'Delete annotation' }).click();
+  await saved.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(saved).toHaveCount(0);
+});
+
+test('admin uploads a shared draft and publishes it for both student accounts', async ({ page }) => {
+  await login(page, 'Administrator');
+  await page.getByRole('link', { name: 'Manage materials', exact: true }).click();
+  await page.getByRole('button', { name: 'Add material', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Choose PDF file').setInputFiles('public/samples/rotated-regression.pdf');
+  await dialog.getByLabel('Document title').fill('Shared geometry practice');
+  await dialog.getByLabel('Subject', { exact: true }).fill('Computer Science');
+  await dialog.getByRole('button', { name: 'Save as draft', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const row = page.getByRole('row').filter({ hasText: 'Shared geometry practice' });
+  await expect(row.getByText('Draft', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Shared library', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Shared geometry practice', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Manage materials', exact: true }).click();
+  await row.getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect(row.getByText('Published', { exact: true })).toBeVisible();
+  for (const account of ['Alex · Student', 'Sam · Student']) {
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: account, exact: true }).click();
+    await page.getByRole('link', { name: 'Shared library', exact: true }).click();
+    await page.getByRole('link', { name: 'Shared geometry practice', exact: true }).click();
+    await expect(page.locator('.textLayer span').first()).toBeVisible();
+    await expect(page.locator('.annotation-card')).toHaveCount(0);
+    await backToLibrary(page);
+  }
 });
 
 test('registration, form errors, mouse selection, and mobile reader', async ({ page }) => {
@@ -185,8 +303,10 @@ test('registration, form errors, mouse selection, and mobile reader', async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Close notes sidebar', exact: true }).click();
   await expect(page.locator('.pdf-page')).not.toHaveClass(/is-loading/);
+  await expectReadingLayout(page);
   await page.screenshot({ path: '.qa/reader-mobile.png', fullPage: true, animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await backToLibrary(page);
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.getByLabel('Email address').fill('taylor@example.test');

@@ -9,18 +9,27 @@ import { inspectPdfUpload } from './validateUpload';
 export function UploadDialog({ scope, onClose, onUploaded }: { scope: DocumentScope; onClose: () => void; onUploaded: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('General');
   const [dragging, setDragging] = useState(false);
   const [stage, setStage] = useState('');
   const queryClient = useQueryClient();
-  useEffect(() => { const dialog = dialogRef.current; dialog?.showModal(); return () => dialog?.close(); }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => { mountedRef.current = false; dialog?.close(); };
+  }, []);
   const upload = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error('Choose a PDF to upload.');
       setStage('Checking your PDF…');
       const pageCount = await inspectPdfUpload(file);
+      // Session changes unmount this dialog. Inspection must not start an upload
+      // under the next account after its original owner has left the screen.
+      if (!mountedRef.current) throw new Error('Upload canceled. Open your library to try again.');
       setStage('Saving your document…');
       return api.uploadDocument({ file, title: title.trim(), subject: subject.trim() || 'General', pageCount, scope });
     },

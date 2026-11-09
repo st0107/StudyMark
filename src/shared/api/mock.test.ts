@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { webcrypto } from 'node:crypto';
 import { File as NodeFile } from 'node:buffer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CreateAnnotationInput } from '../types';
 import { failNextMockMutation, mockApi as api, resetMockInitializationForTests } from './mock';
 import { readFile, resetStorageForTests } from './storage';
@@ -28,6 +28,8 @@ beforeEach(async () => {
   resetMockInitializationForTests();
   session.clear();
 });
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('mock authentication and private account isolation', () => {
   it('requires authentication and rejects incorrect credentials', async () => {
@@ -84,6 +86,44 @@ describe('mock authentication and private account isolation', () => {
     expect(await api.listAnnotations('java-collections')).toHaveLength(0);
     await login();
     expect((await api.listAnnotations('java-collections')).some(item => item.selectedText === highlight.selectedText)).toBe(false);
+  });
+
+  it('does not revive a pending upload after switching away and back to the same account', async () => {
+    await login();
+    let finishSignature!: (value: ArrayBuffer) => void;
+    const signature = new Promise<ArrayBuffer>(resolve => { finishSignature = resolve; });
+    const input = file();
+    vi.spyOn(input, 'slice').mockReturnValue({ arrayBuffer: () => signature } as Blob);
+    const uploading = api.uploadDocument({ file: input, title: 'Canceled upload', subject: 'Test', pageCount: 2 });
+    const rejected = expect(uploading).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await login('sam');
+    await login();
+    finishSignature(new TextEncoder().encode('%PDF-').buffer);
+    await rejected;
+    expect((await api.listDocuments({ scope: 'PERSONAL' })).some(item => item.title === 'Canceled upload')).toBe(false);
+  });
+
+  it('discards PDF bytes when the account changes while the response body downloads', async () => {
+    await login();
+    let finishBody!: (value: Blob) => void;
+    const body = new Promise<Blob>(resolve => { finishBody = resolve; });
+    const readBody = vi.fn(() => body);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, blob: readBody } as unknown as Response);
+    const downloading = api.getDocumentContent('alex-java-notes');
+    const rejected = expect(downloading).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await vi.waitFor(() => expect(readBody).toHaveBeenCalledOnce());
+    await login('sam');
+    await login();
+    finishBody(new Blob(['%PDF-1.7 private content']));
+    await rejected;
+  });
+
+  it('does not finish a pending sign-in after logout', async () => {
+    const signingIn = login();
+    const rejected = expect(signingIn).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await api.logout();
+    await rejected;
+    expect(await api.getSession()).toBeNull();
   });
 });
 

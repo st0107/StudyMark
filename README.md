@@ -1,17 +1,17 @@
 # StudyMark
 
-A React and TypeScript frontend for reading study PDFs, highlighting passages, and keeping private notes. This implementation follows the supplied feature-oriented folder structure. The browser demo is functional; no Spring Boot server or PostgreSQL database is included.
+A React and TypeScript frontend for reading study PDFs, highlighting passages, and keeping private notes. This implementation follows the original frontend MVP plan and the supplied feature-oriented folder structure. The browser demo is functional; no Spring Boot server or PostgreSQL database is included. See [implementation status](docs/IMPLEMENTATION_STATUS.md) for the requirement checklist and backend handoff.
 
 ## Run locally
 
 Use Node.js 20.19+ (or a supported newer LTS) and npm.
 
 ```sh
-npm ci
+npm install
 npm run dev
 ```
 
-Open the localhost URL printed by Vite. `npm ci` also copies PDF.js character maps, fonts, and codecs into `public/pdfjs`. The original sample PDFs are already included; regenerate them with `npm run fixtures` if needed.
+Open the localhost URL printed by Vite. Installation also copies PDF.js character maps, fonts, and codecs into `public/pdfjs`. If your checkout includes a lockfile, use `npm ci` for a locked installation. The original sample PDFs are already included; regenerate them with `npm run fixtures` if needed.
 
 ```sh
 npm run typecheck
@@ -84,13 +84,13 @@ PDF.js **5.4.624** is pinned with its matching worker and assets, compatible wit
 
 ## Validation
 
-The automated suites cover API account isolation, publication/revocation, annotation CRUD and version conflicts, committed persistence, failed saves, file validation and cleanup, multi-line coordinate scaling, note validation, and retained drafts. Browser coverage checks real PDF rendering, mouse/text-range selection, 75%/150% zoom, resizing, reload/re-login, cropped/rotated PDF upload, private data, note retry, personal rename/delete, mobile navigation, registration, and admin restrictions.
+The automated suites cover API account isolation, pending requests during account changes, publication/revocation, annotation CRUD and version conflicts, committed persistence, failed saves, upload cancellation, multi-line coordinate scaling, note validation, and retained drafts. Browser coverage checks real PDF rendering, mouse/text-range selection, 75%/150% zoom, resizing, reload/re-login, cached reading progress, cropped/rotated PDF upload, private data, note retry, Markdown export, personal rename/delete, mobile navigation, registration, and shared draft publication for both students.
 
 Test output and production-build output are the authority for the current result. Browser screenshots/traces are generated under `.qa` and `test-results` and are excluded from source control.
 
-## Design status and limitations
+## Scope and limitations
 
-- The supplied Figma reference could not be inspected: the Figma connector reported its plan tool-call limit, and the browser connector was unavailable. The implemented visual style is provisional and **has not been verified against Figma**. It uses reusable components and responsive layouts, with no substituted Figma asset claims.
+- The current scope follows the functional project plan. Figma matching is no longer an implementation requirement; the app uses its existing responsive component styling.
 - This is browser-local demo storage, not production security. Developer tools can inspect/change demo accounts and data. Use demo information and passwords. Data does not sync across devices; clearing site data removes it. All tabs in one browser share the active account.
 - Bundled sample PDFs are public fixtures. Private document bytes must be protected by the future backend. Local account checks do not replace server authorization.
 - OCR, cross-page selections, user-controlled PDF rotation, embedded-PDF export, collaborative notes, and offline editing are outside this implementation. Scanned pages can be read and receive page notes but need an existing text layer for highlights.

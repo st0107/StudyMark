@@ -70,14 +70,18 @@ export function PdfViewport({ blob, pageNumber, zoom, contentVersion, annotation
       container.style.setProperty('--total-scale-factor', String(scale));
       setDimensions({ width: viewport.width, height: viewport.height });
       renderTask = page.render({ canvas, viewport, transform: [ratio, 0, 0, ratio, 0, 0] });
-      const content = await page.getTextContent();
-      if (disposed) return;
-      setHasText(content.items.some((item) => 'str' in item && item.str.trim().length > 0));
-      textLayer = new pdfjs.TextLayer({ textContentSource: content, container, viewport });
-      await Promise.all([renderTask.promise, textLayer.render()]);
+      // Attach a rejection handler immediately: changing pages can cancel canvas
+      // rendering before the text-content request has finished.
+      await Promise.all([renderTask.promise, page.getTextContent().then(async (content) => {
+        if (disposed) return;
+        setHasText(content.items.some((item) => 'str' in item && item.str.trim().length > 0));
+        textLayer = new pdfjs.TextLayer({ textContentSource: content, container, viewport });
+        await textLayer.render();
+      })]);
       if (!disposed) setLoading(false);
     }).catch((reason: unknown) => {
       if (!disposed && !(reason instanceof Error && reason.name === 'RenderingCancelledException')) {
+        renderTask?.cancel(); textLayer?.cancel();
         setError('The page could not be rendered. Please retry.'); setLoading(false);
       }
     });

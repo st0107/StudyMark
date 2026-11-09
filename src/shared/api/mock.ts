@@ -6,6 +6,7 @@ import type { DatabaseState, StoredDocument, StoredUser } from './storage';
 import { MAX_PDF_PAGES, validateAnnotation, validateEmail, validatePage, validatePassword, validatePdfFile, validateTitle } from './validation';
 
 const SESSION_KEY = 'studymark.session';
+const SESSION_REVISION_KEY = 'studymark.session.revision';
 let initialization: Promise<void> | undefined;
 let failNextMutation = false;
 
@@ -36,14 +37,25 @@ async function state(): Promise<DatabaseState> {
   return readState();
 }
 
-function requireUnchangedSession(expected: string | null): void {
-  if (!expected || localStorage.getItem(SESSION_KEY) !== expected) {
+function sessionSnapshot() {
+  return { userId: localStorage.getItem(SESSION_KEY), revision: localStorage.getItem(SESSION_REVISION_KEY) };
+}
+
+function beginSessionChange() {
+  // A new revision also cancels work if the user signs back into the same account.
+  localStorage.setItem(SESSION_REVISION_KEY, crypto.randomUUID());
+  return sessionSnapshot();
+}
+
+function requireUnchangedSession(expected: ReturnType<typeof sessionSnapshot>, authenticated = true): void {
+  const current = sessionSnapshot();
+  if ((authenticated && !expected.userId) || current.userId !== expected.userId || current.revision !== expected.revision) {
     throw new ApiError('Your session changed. Please sign in and try again.', 'UNAUTHENTICATED', 401);
   }
 }
 
 async function authenticatedState(): Promise<DatabaseState> {
-  const expected = localStorage.getItem(SESSION_KEY);
+  const expected = sessionSnapshot();
   const data = await state();
   requireUnchangedSession(expected);
   return data;
@@ -104,28 +116,34 @@ function ownedAnnotation(data: DatabaseState, id: string, user: User): Annotatio
   return annotation;
 }
 
-async function mutate<T>(change: (data: DatabaseState, user: StoredUser, files: IDBObjectStore) => T, expected = localStorage.getItem(SESSION_KEY)): Promise<T> {
+async function mutate<T>(change: (data: DatabaseState, user: StoredUser, files: IDBObjectStore) => T, expected = sessionSnapshot()): Promise<T> {
   await initializeMockApi();
-  return writeState((data, files) => {
+  const result = await writeState((data, files) => {
     requireUnchangedSession(expected);
     if (!data) throw new ApiError('Demo storage is unavailable.', 'STORAGE_ERROR');
     const result = change(data, currentUser(data), files);
     return { state: data, result };
   });
+  requireUnchangedSession(expected);
+  return result;
 }
 
 export const mockApi: StudyMarkApi = {
   async getSession() {
+    const expected = sessionSnapshot();
     const data = await state();
-    const user = data.users.find(item => item.id === localStorage.getItem(SESSION_KEY));
+    requireUnchangedSession(expected, false);
+    const user = data.users.find(item => item.id === expected.userId);
     return user ? publicUser(user) : null;
   },
   async login({ email, password }) {
+    const expected = beginSessionChange();
     const data = await state();
     const user = data.users.find(item => item.email === email.trim().toLowerCase());
     if (!user || user.passwordDigest !== await passwordDigest(password, user.id)) {
       throw new ApiError('The email or password is incorrect.', 'INVALID_CREDENTIALS', 401);
     }
+    requireUnchangedSession(expected, false);
     localStorage.setItem(SESSION_KEY, user.id);
     return publicUser(user);
   },
@@ -134,19 +152,22 @@ export const mockApi: StudyMarkApi = {
     if (!validatePassword(password)) throw new ApiError('Use a password between 8 and 128 characters.', 'VALIDATION_ERROR', 400);
     const name = displayName.trim();
     if (!name || name.length > 80) throw new ApiError('Enter a name between 1 and 80 characters.', 'VALIDATION_ERROR', 400);
+    const expected = beginSessionChange();
     await initializeMockApi();
     const id = crypto.randomUUID();
     const newUser: StoredUser = { id, displayName: name, email: email.trim().toLowerCase(), role: 'USER', passwordDigest: await passwordDigest(password, id) };
     const user = await writeState(data => {
+      requireUnchangedSession(expected, false);
       if (!data) throw new ApiError('Demo storage is unavailable.', 'STORAGE_ERROR');
       if (data.users.some(item => item.email === newUser.email)) throw new ApiError('An account with this email already exists.', 'EMAIL_IN_USE', 409);
       data.users.push(newUser);
       return { state: data, result: publicUser(newUser) };
     });
+    requireUnchangedSession(expected, false);
     localStorage.setItem(SESSION_KEY, user.id);
     return user;
   },
-  async logout() { localStorage.removeItem(SESSION_KEY); },
+  async logout() { beginSessionChange(); localStorage.removeItem(SESSION_KEY); },
   async updateProfile({ displayName }) {
     return mutate((data, user) => {
       checkSimulatedFailure();
@@ -172,7 +193,7 @@ export const mockApi: StudyMarkApi = {
     return decorateDocument(data, accessibleDocument(data, id, user), user);
   },
   async getDocumentContent(id) {
-    const expected = localStorage.getItem(SESSION_KEY);
+    const expected = sessionSnapshot();
     const data = await authenticatedState();
     const document = accessibleDocument(data, id, currentUser(data));
     const file = await readFile(id);
@@ -182,10 +203,12 @@ export const mockApi: StudyMarkApi = {
     const response = await fetch(document.sourceUrl);
     requireUnchangedSession(expected);
     if (!response.ok) throw new ApiError('The PDF could not be loaded. Please retry.', 'CONTENT_UNAVAILABLE', response.status);
-    return response.blob();
+    const content = await response.blob();
+    requireUnchangedSession(expected);
+    return content;
   },
   async uploadDocument(input) {
-    const expected = localStorage.getItem(SESSION_KEY);
+    const expected = sessionSnapshot();
     await validatePdfFile(input.file);
     const title = validateTitle(input.title);
     if (!Number.isInteger(input.pageCount) || input.pageCount < 1 || input.pageCount > MAX_PDF_PAGES) {

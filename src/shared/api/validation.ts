@@ -2,7 +2,7 @@ import { ApiError } from './errors';
 import type { CreateAnnotationInput, StudyDocument } from '../types';
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-export const MAX_PDF_PAGES = 200;
+export const MAX_PDF_PAGES = 1000;
 export const HIGHLIGHT_COLORS = ['#FFE066', '#A7E8BD', '#A8D8FF', '#D9C2FF', '#FFB5CA'] as const;
 
 export function validateEmail(email: string): boolean {

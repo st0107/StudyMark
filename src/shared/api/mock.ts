@@ -212,7 +212,7 @@ export const mockApi: StudyMarkApi = {
     await validatePdfFile(input.file);
     const title = validateTitle(input.title);
     if (!Number.isInteger(input.pageCount) || input.pageCount < 1 || input.pageCount > MAX_PDF_PAGES) {
-      throw new ApiError('PDFs must contain between 1 and 200 pages.', 'UNSUPPORTED_PDF', 400);
+      throw new ApiError('PDFs must contain between 1 and 1000 pages.', 'UNSUPPORTED_PDF', 400);
     }
     return mutate((data, user, files) => {
       checkSimulatedFailure();

@@ -28,7 +28,7 @@ describe('PDF upload inspection', () => {
   it('rejects a document over the page limit and frees its worker', async () => {
     const destroy = vi.fn().mockResolvedValue(undefined);
     engine.getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 201 }), destroy });
-    await expect(inspectPdfUpload(pdfFile())).rejects.toThrow('200 pages or fewer');
+    await expect(inspectPdfUpload(pdfFile())).rejects.toThrow('1000 pages or fewer');
     expect(destroy).toHaveBeenCalledOnce();
   });
 

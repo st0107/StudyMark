@@ -44,7 +44,7 @@ Use the sign-in screen's account buttons, or sign in with:
 5. Sign in as Sam to see a separate personal library and annotations.
 6. Sign in as the administrator to upload a shared draft and publish/unpublish it. Unpublishing retains students' annotations for republication.
 
-Registration and profile-name changes also work locally. Uploads accept PDFs up to 25 MB and 200 pages. Password-protected, malformed, oversized, or non-PDF inputs produce errors; selected files and note drafts remain available for retries.
+Registration and profile-name changes also work locally. Uploads accept PDFs up to 25 MB and 1000 pages. Password-protected, malformed, oversized, or non-PDF inputs produce errors; selected files and note drafts remain available for retries.
 
 ## Architecture
 

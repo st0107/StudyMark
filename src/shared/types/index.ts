@@ -1,4 +1,4 @@
-export type UserRole = 'USER' | 'ADMIN';
+export type UserRole = "USER" | "ADMIN";
 export interface User {
   id: string;
   email: string;
@@ -6,8 +6,8 @@ export interface User {
   role: UserRole;
 }
 
-export type DocumentScope = 'SHARED' | 'PERSONAL';
-export type DocumentStatus = 'ACTIVE' | 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type DocumentScope = "SHARED" | "PERSONAL";
+export type DocumentStatus = "ACTIVE" | "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export interface StudyDocument {
   id: string;
   title: string;
@@ -38,12 +38,17 @@ export interface PdfAnchor {
   rects: NormalizedRect[];
   quote?: { exact: string; prefix?: string; suffix?: string };
 }
-export type HighlightColor = '#FFE066' | '#A7E8BD' | '#A8D8FF' | '#D9C2FF' | '#FFB5CA';
+export type HighlightColor =
+  | "#FFE066"
+  | "#A7E8BD"
+  | "#A8D8FF"
+  | "#D9C2FF"
+  | "#FFB5CA";
 export interface Annotation {
   id: string;
   userId: string;
   documentId: string;
-  type: 'HIGHLIGHT' | 'PAGE_NOTE';
+  type: "HIGHLIGHT" | "PAGE_NOTE";
   pageNumber: number;
   selectedText: string | null;
   anchor: PdfAnchor | null;
@@ -54,7 +59,7 @@ export interface Annotation {
   updatedAt: string;
 }
 export interface CreateAnnotationInput {
-  type: Annotation['type'];
+  type: Annotation["type"];
   pageNumber: number;
   selectedText?: string | null;
   anchor?: PdfAnchor | null;
@@ -79,8 +84,13 @@ export interface UploadDocumentInput {
   pageCount: number;
   scope?: DocumentScope;
 }
-export interface LoginInput { email: string; password: string }
-export interface RegisterInput extends LoginInput { displayName: string }
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+export interface RegisterInput extends LoginInput {
+  displayName: string;
+}
 export interface StudyMarkApi {
   getSession(): Promise<User | null>;
   login(input: LoginInput): Promise<User>;
@@ -94,11 +104,20 @@ export interface StudyMarkApi {
   renameDocument(id: string, title: string): Promise<StudyDocument>;
   deleteDocument(id: string): Promise<void>;
   listAdminDocuments(): Promise<StudyDocument[]>;
-  setPublication(id: string, status: 'DRAFT' | 'PUBLISHED'): Promise<StudyDocument>;
+  setPublication(
+    id: string,
+    status: "DRAFT" | "PUBLISHED",
+  ): Promise<StudyDocument>;
   listAnnotations(documentId: string): Promise<Annotation[]>;
   getAllAnnotations(): Promise<AnnotationWithDocument[]>;
-  createAnnotation(documentId: string, input: CreateAnnotationInput): Promise<Annotation>;
-  updateAnnotation(id: string, input: UpdateAnnotationInput): Promise<Annotation>;
+  createAnnotation(
+    documentId: string,
+    input: CreateAnnotationInput,
+  ): Promise<Annotation>;
+  updateAnnotation(
+    id: string,
+    input: UpdateAnnotationInput,
+  ): Promise<Annotation>;
   deleteAnnotation(id: string): Promise<void>;
   saveProgress(documentId: string, page: number): Promise<void>;
 }

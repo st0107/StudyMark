@@ -8,7 +8,7 @@ This checklist maps the original product plan to the current **frontend-only** s
 | --- | --- | --- |
 | FR-01 Authentication | Register, sign in/out, restore a local session, validate forms, and restrict admin navigation. Pending account work is guarded when the active session changes. | Mock API and auth component tests; registration and route browser tests. |
 | FR-02 Shared library | Browse published shared PDFs, search titles, filter subjects, and open the reader. | API publication tests and shared-library browser flows. |
-| FR-03 Personal upload | Inspect PDFs up to 25 MB / 200 pages; upload, rename, and delete private documents. Ownership applies to metadata, bytes, and annotations. | Upload validation and cancellation tests, API isolation tests, browser upload/rename/delete. |
+| FR-03 Personal upload | Inspect PDFs up to 25 MB / 1000 pages; upload, rename, and delete private documents. Ownership applies to metadata, bytes, and annotations. | Upload validation and cancellation tests, API isolation tests, browser upload/rename/delete. |
 | FR-04 Reader | Render a real PDF canvas and selectable text; navigate pages and zoom. Only the current page renders. | Browser rendering, page navigation, mouse selection, zoom, and mobile checks. |
 | FR-05 Highlight | Capture multi-line selections as versioned normalized rectangles; offer five highlight colors. | Anchor unit tests and real-PDF alignment checks at 75% / 150% zoom, resize, and reload. |
 | FR-06 Highlight note | Add/edit/remove note text and delete highlights with their notes. | API annotation tests, note editor tests, browser annotation CRUD. |
@@ -34,6 +34,8 @@ The privacy and authentication behavior above is simulated in browser storage. I
 The PDF engine, text-selection geometry, stored anchors, highlight overlays, and annotation forms remain separate. Anchors use one-based pages and rectangles normalized against the intrinsic cropped/rotated PDF viewport. Replacing PDF bytes in place is unsupported because existing anchors belong to an immutable content version.
 
 ## Remaining backend work
+
+The user will create the backend. Per the decision on 10 November 2026, all engineering-audit remediation is deferred until the user confirms backend completion. The [post-backend plan](POST_BACKEND_PLAN.md) records the handoff and follow-up sequence for all 25 findings.
 
 The next product phase is Spring Boot and PostgreSQL integration, outside this frontend implementation. Implement the contract in [API.md](API.md), including sessions, CSRF handling, server ownership checks, validated uploads, protected PDF streaming, database migrations, durable file storage, and server pagination. Then exercise the HTTP adapter with real API integration tests and deployed performance measurements.
 

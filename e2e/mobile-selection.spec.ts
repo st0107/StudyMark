@@ -23,11 +23,12 @@ async function openReader(page: Page) {
 
 async function wordPoint(page: Page, word: string): Promise<Point> {
   return page.locator(".textLayer").evaluate((layer, target) => {
+    const pattern = new RegExp(`\\b${target}\\b`);
     const span = [...layer.querySelectorAll("span")].find((item) =>
-      item.textContent?.includes(target),
+      pattern.test(item.textContent ?? ""),
     );
     if (!span?.firstChild) throw new Error(`Missing PDF word: ${target}`);
-    const offset = span.textContent!.indexOf(target);
+    const offset = span.textContent!.search(pattern);
     const range = document.createRange();
     range.setStart(span.firstChild, offset);
     range.setEnd(span.firstChild, offset + target.length);
@@ -59,6 +60,16 @@ async function longPress(page: Page, session: CDPSession, point: Point) {
 
 async function drag(page: Page, session: CDPSession, from: Point, to: Point) {
   await touch(session, "touchStart", from);
+  await moveTouch(page, session, from, to);
+  await touch(session, "touchEnd");
+}
+
+async function moveTouch(
+  page: Page,
+  session: CDPSession,
+  from: Point,
+  to: Point,
+) {
   for (let step = 1; step <= 8; step++) {
     await touch(session, "touchMove", {
       x: from.x + ((to.x - from.x) * step) / 8,
@@ -67,7 +78,6 @@ async function drag(page: Page, session: CDPSession, from: Point, to: Point) {
     // Real touch frames let the browser's scroll recognizer participate.
     await page.waitForTimeout(20);
   }
-  await touch(session, "touchEnd");
 }
 
 test("touch word selection opens app actions, lookups and a persistent highlight", async ({
@@ -83,6 +93,11 @@ test("touch word selection opens app actions, lookups and a persistent highlight
   await expect(toolbar.locator(".selection-preview")).toHaveText("collection");
   await expect(page.locator(".pdf-touch-selection-rect")).toHaveCount(1);
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  expect(
+    await page
+      .locator(".textLayer")
+      .evaluate((element) => getComputedStyle(element).userSelect),
+  ).toBe("none");
 
   const search = toolbar.getByRole("link", {
     name: "Search Google (opens in new tab)",
@@ -273,4 +288,66 @@ test("quick swipes scroll, and dismissing or navigating clears touch selection",
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("holding then dragging selects a passage, with actions fitting narrow and landscape phones", async ({
+  page,
+  context,
+}) => {
+  await openReader(page);
+  const session = await context.newCDPSession(page);
+  const start = await wordPoint(page, "collection");
+  await touch(session, "touchStart", start);
+  const toolbar = page.getByRole("toolbar", { name: "Selected text actions" });
+  await expect(toolbar).toBeVisible();
+  await moveTouch(
+    page,
+    session,
+    start,
+    await wordPoint(page, "characteristics"),
+  );
+  await touch(session, "touchEnd");
+  const search = toolbar.getByRole("link", {
+    name: "Search Google (opens in new tab)",
+    exact: true,
+  });
+  await expect
+    .poll(async () =>
+      new URL((await search.getAttribute("href"))!).searchParams.get("q"),
+    )
+    .toContain("performance characteristics");
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+
+  for (const viewport of [
+    { width: 320, height: 640 },
+    { width: 844, height: 390 },
+  ]) {
+    await page
+      .getByRole("button", { name: "Dismiss selection", exact: true })
+      .tap();
+    await page.setViewportSize(viewport);
+    await expect(page.locator(".pdf-page")).not.toHaveClass(/is-loading/);
+    await page
+      .locator(".textLayer span")
+      .filter({ hasText: "A collection groups" })
+      .scrollIntoViewIfNeeded();
+    await longPress(page, session, await wordPoint(page, "collection"));
+    const bounds = (await toolbar.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height + 1);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      toolbar.getByRole("button", { name: "Highlight yellow", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `.qa/mobile-selection-${viewport.width === 320 ? "narrow" : "landscape"}.png`,
+      fullPage: true,
+    });
+  }
 });

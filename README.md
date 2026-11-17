@@ -37,7 +37,7 @@ Use the sign-in screen's account buttons, or sign in with:
 | Sam, student | `sam@studymark.app` | `StudyMark123!` |
 | Jamie, administrator | `admin@studymark.app` | `StudyMark123!` |
 
-1. Open Java Collections. Select a passage with the mouse and choose a highlight color, or use Add note for a page note.
+1. Open Java Collections. Select a passage with the mouse, or touch and hold a word on a phone. Drag to extend the selection, then adjust it with the blue handles. Choose a highlight color or attach a private note. The toolbar also offers Search Google and Meaning; both open a new tab, and Meaning looks up a word definition or a simple explanation of the selected passage on Google.
 2. Edit the highlight in the sidebar, change its color, and add a note. Navigate from its page link, zoom, and refresh.
 3. Visit My highlights to search, filter, edit, and export your notes as Markdown.
 4. Upload a PDF in My PDFs, then rename or delete it through its actions menu.
@@ -45,6 +45,8 @@ Use the sign-in screen's account buttons, or sign in with:
 6. Sign in as the administrator to upload a shared draft and publish/unpublish it. Unpublishing retains students' annotations for republication.
 
 Registration and profile-name changes also work locally. Uploads accept PDFs up to 25 MB and 1000 pages. Password-protected, malformed, oversized, or non-PDF inputs produce errors; selected files and note drafts remain available for retries.
+
+Touch selection uses the app's own text overlay and handles inside the PDF, keeping the browser's native selection menu out of that flow. Quick swipes still scroll, and the mobile actions panel sits below the page. Selected text is sent to Google only when a lookup link is activated; there is no in-app definition or AI explanation service. On a focused selection handle, arrow keys adjust the selection by word.
 
 ## Architecture
 

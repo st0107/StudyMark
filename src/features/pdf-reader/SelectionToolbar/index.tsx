@@ -93,6 +93,11 @@ export function SelectionToolbar({
           ))}
         </div>
       </div>
+      {selection.source === "touch" && (
+        <p className="selection-adjust-hint">
+          Drag the blue handles to adjust your selection.
+        </p>
+      )}
       <div className="selection-actions">
         <button
           type="button"

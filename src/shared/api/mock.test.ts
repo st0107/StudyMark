@@ -350,7 +350,7 @@ describe("uploads and publication", () => {
         file: file(),
         title: "Too long",
         subject: "Test",
-        pageCount: 201,
+        pageCount: 1001,
       }),
     ).rejects.toMatchObject({ code: "UNSUPPORTED_PDF" });
   });

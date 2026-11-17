@@ -1097,6 +1097,14 @@
   background: #3476c5;
   box-shadow: 0 1px 3px #143b5d33;
 }
+.pdf-selection-handle.is-start {
+  transform: translate(-50%, -100%);
+}
+.pdf-selection-handle.is-start::after {
+  top: auto;
+  bottom: 0;
+  border-radius: 50% 50% 2px 2px;
+}
 .pdf-selection-handle:focus-visible {
   outline: 2px solid #3476c5;
   outline-offset: 0;

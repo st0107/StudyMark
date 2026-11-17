@@ -39,7 +39,7 @@ describe("PDF upload inspection", () => {
   it("rejects a document over the page limit and frees its worker", async () => {
     const destroy = vi.fn().mockResolvedValue(undefined);
     engine.getDocument.mockReturnValue({
-      promise: Promise.resolve({ numPages: 201 }),
+      promise: Promise.resolve({ numPages: 1001 }),
       destroy,
     });
     await expect(inspectPdfUpload(pdfFile())).rejects.toThrow(

@@ -185,7 +185,7 @@ export function useTouchSelection({
       if (gesture?.active) {
         if (event.cancelable) event.preventDefault();
         suppressClickUntil = Date.now() + 750;
-      } else if (gesture && rangeRef.current) {
+      } else if (gesture && (rangeRef.current || nativeOwnedRef.current)) {
         clear();
       }
       cancelGesture();
@@ -201,7 +201,9 @@ export function useTouchSelection({
       }
     };
     const nativeSelection = () => {
-      if (rangeRef.current || gesture?.active) return;
+      // Clearing a previous mouse selection queues selectionchange. Do not let
+      // that event dismiss the toolbar and cancel a new touch hold mid-gesture.
+      if (rangeRef.current || gesture) return;
       const next = captureSelection(page, pageNumber, contentVersion);
       if (next) {
         nativeOwnedRef.current = true;

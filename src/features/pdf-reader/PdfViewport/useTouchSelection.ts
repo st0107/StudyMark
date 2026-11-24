@@ -60,6 +60,7 @@ export function useTouchSelection({
     const layer = page.querySelector<HTMLElement>(".textLayer");
     if (!layer) return;
     let timer: number | undefined;
+    let revealFrame: number | undefined;
     let gesture: Gesture | null = null;
     let suppressClickUntil = 0;
 
@@ -185,6 +186,31 @@ export function useTouchSelection({
       if (gesture?.active) {
         if (event.cancelable) event.preventDefault();
         suppressClickUntil = Date.now() + 750;
+        const end =
+          (event.target as Element).closest<HTMLElement>("[data-selection-end]")
+            ?.dataset.selectionEnd === "start"
+            ? "start"
+            : "end";
+        // The mobile panel reduces the visible page height. Wait until release
+        // to reveal the endpoint so the text never moves under a dragging finger.
+        window.cancelAnimationFrame(revealFrame ?? 0);
+        revealFrame = window.requestAnimationFrame(() => {
+          const viewport = page.closest<HTMLElement>(".pdf-viewport");
+          const range = rangeRef.current;
+          if (!viewport || !range) return;
+          const word = boundaryWord(range, end);
+          if (!word) return;
+          const bounds = word.getBoundingClientRect();
+          const visible = viewport.getBoundingClientRect();
+          const padding = Math.min(44, visible.height / 4);
+          const delta =
+            bounds.bottom + padding > visible.bottom
+              ? bounds.bottom + padding - visible.bottom
+              : bounds.top - padding < visible.top
+                ? bounds.top - padding - visible.top
+                : 0;
+          if (delta) viewport.scrollBy({ top: delta, behavior: "instant" });
+        });
       } else if (gesture && (rangeRef.current || nativeOwnedRef.current)) {
         clear();
       }
@@ -254,6 +280,7 @@ export function useTouchSelection({
     document.addEventListener("selectionchange", nativeSelection);
     return () => {
       cancelGesture();
+      window.cancelAnimationFrame(revealFrame ?? 0);
       clear();
       page.removeEventListener("pointerdown", pointerDown);
       page.removeEventListener("touchstart", touchStart);

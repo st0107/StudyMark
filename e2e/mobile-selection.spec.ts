@@ -80,19 +80,37 @@ async function moveTouch(
   }
 }
 
-async function dragSelectionHandle(page: Page, session: CDPSession, end: "start" | "end", targetWord: string) {
-  const handle = page.getByRole("button", { name: `Adjust selection ${end}`, exact: true });
+async function dragSelectionHandle(
+  page: Page,
+  session: CDPSession,
+  end: "start" | "end",
+  targetWord: string,
+) {
+  const handle = page.getByRole("button", {
+    name: `Adjust selection ${end}`,
+    exact: true,
+  });
   const bounds = (await handle.boundingBox())!;
   const rects = page.locator(".pdf-touch-selection-rect");
-  const selectedWord = (await (end === "start" ? rects.first() : rects.last()).boundingBox())!;
-  const finger = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  const selectedWord = (await (
+    end === "start" ? rects.first() : rects.last()
+  ).boundingBox())!;
+  const finger = {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+  };
   const target = await wordPoint(page, targetWord);
   // Preserve the finger-to-glyph offset while dragging the handle beside the text.
   const offset = {
-    x: finger.x - (selectedWord.x + (end === "start" ? 1 : selectedWord.width - 1)),
+    x:
+      finger.x -
+      (selectedWord.x + (end === "start" ? 1 : selectedWord.width - 1)),
     y: finger.y - (selectedWord.y + selectedWord.height / 2),
   };
-  await drag(page, session, finger, { x: target.x + offset.x, y: target.y + offset.y });
+  await drag(page, session, finger, {
+    x: target.x + offset.x,
+    y: target.y + offset.y,
+  });
 }
 
 test("touch word selection opens app actions, lookups and a persistent highlight", async ({
@@ -227,12 +245,20 @@ test("touch handles extend a passage, preserve failed highlights and attach note
 
   await longPress(page, session, await wordPoint(page, "a"));
   await expect(toolbar.locator(".selection-preview")).toHaveText("a");
-  const startHandle = (await page.getByRole("button", { name: "Adjust selection start", exact: true }).boundingBox())!;
-  const endHandle = (await page.getByRole("button", { name: "Adjust selection end", exact: true }).boundingBox())!;
+  const startHandle = (await page
+    .getByRole("button", { name: "Adjust selection start", exact: true })
+    .boundingBox())!;
+  const endHandle = (await page
+    .getByRole("button", { name: "Adjust selection end", exact: true })
+    .boundingBox())!;
   expect(startHandle.y + startHandle.height).toBeLessThanOrEqual(endHandle.y);
   await dragSelectionHandle(page, session, "start", "each");
-  await expect(toolbar.locator(".selection-preview")).toHaveText("each key with a");
-  await toolbar.getByRole("button", { name: "Dismiss selection", exact: true }).tap();
+  await expect(toolbar.locator(".selection-preview")).toHaveText(
+    "each key with a",
+  );
+  await toolbar
+    .getByRole("button", { name: "Dismiss selection", exact: true })
+    .tap();
 
   await longPress(page, session, await wordPoint(page, "duplicates"));
   await toolbar
@@ -341,10 +367,16 @@ test("holding then dragging selects a passage, with actions fitting narrow and l
     await page
       .getByRole("button", { name: "Dismiss selection", exact: true })
       .tap();
-    const previousWidth = await page.locator(".pdf-page").evaluate(element => element.clientWidth);
+    const previousWidth = await page
+      .locator(".pdf-page")
+      .evaluate((element) => element.clientWidth);
     await page.setViewportSize(viewport);
     // ResizeObserver updates the text layer asynchronously; wait for the new page size.
-    await expect.poll(() => page.locator(".pdf-page").evaluate(element => element.clientWidth)).not.toBe(previousWidth);
+    await expect
+      .poll(() =>
+        page.locator(".pdf-page").evaluate((element) => element.clientWidth),
+      )
+      .not.toBe(previousWidth);
     await expect(page.locator(".pdf-page")).not.toHaveClass(/is-loading/);
     await page
       .locator(".textLayer span")
@@ -363,7 +395,15 @@ test("holding then dragging selects a passage, with actions fitting narrow and l
     ).toBe(true);
     await expect(
       toolbar.getByRole("button", { name: "Highlight yellow", exact: true }),
-    ).toBeVisible();
+    ).toBeInViewport({ ratio: 0.99 });
+    for (const action of await toolbar.locator(".selection-action").all()) {
+      await expect(action).toBeInViewport({ ratio: 0.99 });
+    }
+    // Ancestor clipping counts: the selected glyph must remain in the PDF's
+    // scroll viewport after the action panel opens and the finger is released.
+    await expect(
+      page.locator(".pdf-touch-selection-rect").first(),
+    ).toBeInViewport({ ratio: 0.99 });
     await page.screenshot({
       path: `.qa/mobile-selection-${viewport.width === 320 ? "narrow" : "landscape"}.png`,
       fullPage: true,

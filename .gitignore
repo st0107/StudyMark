@@ -9,3 +9,4 @@ playwright-report/
 *.tsbuildinfo
 .qa/
 public/pdfjs/
+docs/FRONTEND_INTERVIEW_QA.md

@@ -232,6 +232,8 @@ Remediation: adopt readable formatting, use shared tokens where they improve con
 
 ## Recommended order
 
+Scheduling decision, 10 November 2026: the user will create the backend themselves. Remediation of all findings is deferred until they confirm it is ready. Follow the [post-backend plan](POST_BACKEND_PLAN.md) for the handoff and execution sequence; the technical priorities below remain the original audit recommendation.
+
 1. Fix reproduced data loss, progress ordering, inaccessible controls/contrast, and the mobile menu defect.
 2. Establish supported/reproducible tooling and address development dependency advisories; enforce checks in CI.
 3. Complete and test the HTTP session, CSRF, response, pagination, cancellation and retry contracts while building the planned backend.

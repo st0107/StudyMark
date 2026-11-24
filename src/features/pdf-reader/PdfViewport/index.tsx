@@ -270,7 +270,7 @@ export function PdfViewport({
                       title="Drag to adjust, or use the arrow keys"
                       style={{
                         left: `${(rect.x + (end === "end" ? rect.width : 0)) * 100}%`,
-                        top: `${(rect.y + rect.height) * 100}%`,
+                        top: `${(rect.y + (end === "end" ? rect.height : 0)) * 100}%`,
                       }}
                     />
                   );
